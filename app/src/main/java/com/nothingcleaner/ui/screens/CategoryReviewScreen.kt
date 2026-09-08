@@ -156,7 +156,7 @@ fun CategoryReviewScreen(viewModel: CleanerViewModel, category: FileCategory, on
             
             if (selectedItemIds.isNotEmpty()) {
                 Button(
-                    onClick = onReviewSelection, or go back to overview to hit the final review
+                    onClick = onReviewSelection,
                     colors = ButtonDefaults.buttonColors(
                         containerColor = MaterialTheme.colorScheme.primary,
                         contentColor = MaterialTheme.colorScheme.background
