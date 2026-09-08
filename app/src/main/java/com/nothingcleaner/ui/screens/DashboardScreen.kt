@@ -76,8 +76,7 @@ fun DashboardScreen(viewModel: StorageViewModel, onAnalyze: () -> Unit) {
             fontWeight = FontWeight.Bold
         )
         Text(
-            text = "Understand what's taking space
-before deleting anything.",
+            text = "Understand what's taking space\nbefore deleting anything.",
             style = MaterialTheme.typography.bodyLarge,
             color = MaterialTheme.colorScheme.primary.copy(alpha = 0.7f),
             modifier = Modifier.padding(top = 8.dp, bottom = 24.dp)

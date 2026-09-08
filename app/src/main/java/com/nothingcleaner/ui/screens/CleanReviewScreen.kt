@@ -97,8 +97,7 @@ fun CleanReviewScreen(viewModel: StorageViewModel, onCancel: () -> Unit, onClean
             fontWeight = FontWeight.Bold
         )
         Text(
-            text = "Android will ask you to confirm the deletion.
-Nothing else will be removed.",
+            text = "Android will ask you to confirm the deletion.\nNothing else will be removed.",
             style = MaterialTheme.typography.bodyMedium,
             color = MaterialTheme.colorScheme.primary.copy(alpha = 0.7f),
         )
