@@ -54,7 +54,7 @@ fun DashboardScreen(onStartScan: () -> Unit) {
         Spacer(modifier = Modifier.height(24.dp))
         
         LinearProgressIndicator(
-            progress = { (stats.usedBytes.toDouble() / stats.totalBytes).toFloat() },
+            progress = (stats.usedBytes.toDouble() / stats.totalBytes).toFloat(),
             modifier = Modifier
                 .fillMaxWidth()
                 .height(8.dp),
