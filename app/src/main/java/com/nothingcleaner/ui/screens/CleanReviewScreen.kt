@@ -12,22 +12,24 @@ import androidx.compose.ui.platform.LocalContext
 import androidx.compose.ui.text.font.FontWeight
 import androidx.compose.ui.unit.dp
 import coil.compose.AsyncImage
-import com.nothingcleaner.storage.CleanerService
-import com.nothingcleaner.ui.CleanerViewModel
+import com.nothingcleaner.core.model.PreviewType
+import com.nothingcleaner.ui.components.DestructiveButton
+import com.nothingcleaner.ui.components.SecondaryButton
+import com.nothingcleaner.viewmodel.ScanState
+import com.nothingcleaner.viewmodel.StorageViewModel
 import kotlinx.coroutines.launch
 import java.util.Locale
 
 @Composable
-fun CleanReviewScreen(viewModel: CleanerViewModel, onCancel: () -> Unit, onCleanComplete: () -> Unit, onPreview: (String) -> Unit) {
-    val context = LocalContext.current
-    val scope = rememberCoroutineScope()
+fun CleanReviewScreen(viewModel: StorageViewModel, onCancel: () -> Unit, onCleanComplete: () -> Unit, onPreview: (Long) -> Unit) {
+    val uiState by viewModel.uiState.collectAsState()
+    val analysis = (uiState.scanState as? ScanState.Complete)?.analysis ?: return
+    val selectedItemIds = uiState.selectedItemIds
     
-    val scannedItems by viewModel.scannedItems.collectAsState()
-    val selectedItemIds by viewModel.selectedItemIds.collectAsState()
-    
-    val selectedItems = scannedItems.filter { it.id in selectedItemIds }
+    val selectedItems = analysis.categories.values.flatten().distinctBy { it.id }.filter { it.id in selectedItemIds }
     val totalSelectedMb = selectedItems.sumOf { it.sizeBytes } / (1024 * 1024.0)
 
+    val scope = rememberCoroutineScope()
     var isCleaning by remember { mutableStateOf(false) }
 
     LaunchedEffect(selectedItemIds) {
@@ -42,12 +44,12 @@ fun CleanReviewScreen(viewModel: CleanerViewModel, onCancel: () -> Unit, onClean
             .padding(24.dp)
     ) {
         Text(
-            text = "REVIEW CLEANUP",
+            text = "READY TO CLEAN",
             style = MaterialTheme.typography.titleLarge,
             color = MaterialTheme.colorScheme.primary
         )
         Text(
-            text = String.format(Locale.US, "%d FILES   %.1f MB", selectedItems.size, totalSelectedMb),
+            text = String.format(Locale.US, "%.1f MB • %d FILES SELECTED", totalSelectedMb, selectedItems.size),
             style = MaterialTheme.typography.bodyLarge,
             color = MaterialTheme.colorScheme.primary.copy(alpha = 0.7f)
         )
@@ -63,11 +65,8 @@ fun CleanReviewScreen(viewModel: CleanerViewModel, onCancel: () -> Unit, onClean
                         .padding(vertical = 12.dp),
                     verticalAlignment = Alignment.CenterVertically
                 ) {
-                    Box(
-                        modifier = Modifier
-                            .size(48.dp)
-                    ) {
-                        if (item.mimeType.startsWith("image/") || item.mimeType.startsWith("video/")) {
+                    Box(modifier = Modifier.size(48.dp)) {
+                        if (item.previewType == PreviewType.IMAGE || item.previewType == PreviewType.VIDEO) {
                             AsyncImage(
                                 model = item.uri,
                                 contentDescription = null,
@@ -81,7 +80,7 @@ fun CleanReviewScreen(viewModel: CleanerViewModel, onCancel: () -> Unit, onClean
                     Spacer(modifier = Modifier.width(16.dp))
                     
                     Text(
-                        text = item.name,
+                        text = item.displayName,
                         style = MaterialTheme.typography.bodyMedium,
                         maxLines = 1,
                         modifier = Modifier.weight(1f).padding(end = 16.dp)
@@ -93,51 +92,36 @@ fun CleanReviewScreen(viewModel: CleanerViewModel, onCancel: () -> Unit, onClean
         Spacer(modifier = Modifier.height(16.dp))
         
         Text(
-            text = "Nothing else will be removed.",
+            text = "WHAT HAPPENS NEXT",
+            style = MaterialTheme.typography.labelLarge,
+            fontWeight = FontWeight.Bold
+        )
+        Text(
+            text = "Android will ask you to confirm the deletion.
+Nothing else will be removed.",
             style = MaterialTheme.typography.bodyMedium,
             color = MaterialTheme.colorScheme.primary.copy(alpha = 0.7f),
-            fontWeight = FontWeight.Bold
         )
         
         Spacer(modifier = Modifier.height(24.dp))
         
         Row(modifier = Modifier.fillMaxWidth(), horizontalArrangement = Arrangement.spacedBy(16.dp)) {
-            Button(
+            SecondaryButton(
+                text = "BACK",
                 onClick = onCancel,
-                modifier = Modifier.weight(1f).height(56.dp),
-                enabled = !isCleaning,
-                colors = ButtonDefaults.buttonColors(
-                    containerColor = MaterialTheme.colorScheme.surfaceVariant,
-                    contentColor = MaterialTheme.colorScheme.onSurfaceVariant
-                ),
-                shape = MaterialTheme.shapes.small
-            ) {
-                Text("CANCEL", fontWeight = FontWeight.Bold)
-            }
+                modifier = Modifier.weight(1f),
+                enabled = !isCleaning
+            )
             
-            Button(
+            DestructiveButton(
+                text = if (isCleaning) "WAITING..." else "CLEAN",
                 onClick = {
                     isCleaning = true
-                    scope.launch {
-                        val cleaner = CleanerService(context)
-                        cleaner.deleteItems(selectedItems)
-                        isCleaning = false
-                        onCleanComplete()
-                    }
+                    onCleanComplete()
                 },
-                modifier = Modifier.weight(1f).height(56.dp),
-                enabled = !isCleaning && selectedItems.isNotEmpty(),
-                colors = ButtonDefaults.buttonColors(
-                    containerColor = MaterialTheme.colorScheme.error,
-                    contentColor = MaterialTheme.colorScheme.onError
-                ),
-                shape = MaterialTheme.shapes.small
-            ) {
-                Text(
-                    if (isCleaning) "CLEANING..." else "CLEAN", 
-                    fontWeight = FontWeight.Bold
-                )
-            }
+                modifier = Modifier.weight(1f),
+                enabled = !isCleaning && selectedItems.isNotEmpty()
+            )
         }
     }
 }

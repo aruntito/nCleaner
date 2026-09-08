@@ -9,22 +9,21 @@ import androidx.compose.runtime.*
 import androidx.compose.ui.Modifier
 import androidx.compose.ui.text.font.FontWeight
 import androidx.compose.ui.unit.dp
-import com.nothingcleaner.scanner.FileCategory
-import com.nothingcleaner.ui.CleanerViewModel
-import com.nothingcleaner.util.StorageUtil
+import com.nothingcleaner.core.model.StorageCategory
+import com.nothingcleaner.ui.components.PrimaryButton
+import com.nothingcleaner.viewmodel.ScanState
+import com.nothingcleaner.viewmodel.StorageViewModel
 import java.util.Locale
 
 @Composable
-fun OverviewScreen(viewModel: CleanerViewModel, onCategorySelected: (FileCategory) -> Unit, onReviewClean: () -> Unit) {
-    val scannedItems by viewModel.scannedItems.collectAsState()
-    val stats = StorageUtil.getStorageStats()
+fun OverviewScreen(viewModel: StorageViewModel, onCategorySelected: (StorageCategory) -> Unit, onReviewClean: () -> Unit) {
+    val uiState by viewModel.uiState.collectAsState()
+    
+    val analysis = (uiState.scanState as? ScanState.Complete)?.analysis ?: return
 
-    val totalReviewableMb = scannedItems.sumOf { it.sizeBytes } / (1024 * 1024.0)
-    val usedGb = stats.usedBytes / (1024 * 1024 * 1024.0)
-    val totalGb = stats.totalBytes / (1024 * 1024 * 1024.0)
-
-    val grouped = scannedItems.groupBy { it.category }
-
+    val totalReviewableMb = analysis.categories.values.flatten().distinctBy { it.id }.sumOf { it.sizeBytes } / (1024 * 1024.0)
+    val duplicateMb = analysis.duplicateGroups.flatten().distinctBy { it.id }.sumOf { it.sizeBytes } / (1024 * 1024.0)
+    
     Column(
         modifier = Modifier
             .fillMaxSize()
@@ -36,10 +35,10 @@ fun OverviewScreen(viewModel: CleanerViewModel, onCategorySelected: (FileCategor
             color = MaterialTheme.colorScheme.primary
         )
         
-        Spacer(modifier = Modifier.height(16.dp))
+        Divider(modifier = Modifier.padding(vertical = 16.dp), color = MaterialTheme.colorScheme.primary.copy(alpha = 0.2f))
         
         Text(
-            text = String.format(Locale.US, "%.1f GB TOTAL   %.1f GB USED", totalGb, usedGb),
+            text = String.format(Locale.US, "%.1f MB REVIEWABLE FILES", totalReviewableMb),
             style = MaterialTheme.typography.bodyLarge,
             fontWeight = FontWeight.Bold,
             color = MaterialTheme.colorScheme.primary
@@ -47,66 +46,47 @@ fun OverviewScreen(viewModel: CleanerViewModel, onCategorySelected: (FileCategor
         
         Divider(modifier = Modifier.padding(vertical = 16.dp), color = MaterialTheme.colorScheme.primary.copy(alpha = 0.2f))
         
-        Text(
-            text = String.format(Locale.US, "CAN FREE UP %.1f MB", totalReviewableMb),
-            style = MaterialTheme.typography.bodyLarge,
-            color = MaterialTheme.colorScheme.primary
-        )
-        
-        Divider(modifier = Modifier.padding(vertical = 16.dp), color = MaterialTheme.colorScheme.primary.copy(alpha = 0.2f))
-        
         LazyColumn(modifier = Modifier.weight(1f)) {
             val order = listOf(
-                FileCategory.LARGE_FILES,
-                FileCategory.DOWNLOADS,
-                FileCategory.SCREEN_RECORDINGS,
-                FileCategory.SCREENSHOTS,
-                FileCategory.VIDEOS,
-                FileCategory.IMAGES
+                StorageCategory.SCREEN_RECORDINGS,
+                StorageCategory.LARGE_FILES,
+                StorageCategory.DOWNLOADS,
+                StorageCategory.SCREENSHOTS,
+                StorageCategory.OTHER_MEDIA
             )
             
             items(order) { category ->
-                val items = grouped[category] ?: emptyList()
-                val sizeMb = items.sumOf { it.sizeBytes } / (1024 * 1024.0)
+                val catItems = analysis.categories[category] ?: emptyList()
+                val sizeMb = catItems.sumOf { it.sizeBytes } / (1024 * 1024.0)
                 CategoryRow(
                     title = category.displayName,
-                    subtitle = String.format(Locale.US, "%.1f MB | %d items", sizeMb, items.size),
-                    actionText = "REVIEW →",
+                    subtitle = String.format(Locale.US, "%.1f MB • %d files", sizeMb, catItems.size),
+                    actionText = "[ REVIEW → ]",
                     onClick = { onCategorySelected(category) }
                 )
             }
 
-            // Duplicates placeholder
+            // Duplicates
             item {
                 CategoryRow(
-                    title = "DUPLICATES",
-                    subtitle = "Not analyzed",
-                    actionText = "ANALYZE →",
-                    onClick = { /* Future Implementation */ }
+                    title = StorageCategory.DUPLICATES.displayName,
+                    subtitle = String.format(Locale.US, "%.1f MB • %d files", duplicateMb, analysis.duplicateGroups.flatten().distinctBy { it.id }.size),
+                    actionText = "[ REVIEW → ]",
+                    onClick = { onCategorySelected(StorageCategory.DUPLICATES) }
                 )
             }
-
         }
         
-        val selectedItemIds by viewModel.selectedItemIds.collectAsState()
-        if (selectedItemIds.isNotEmpty()) {
+        if (uiState.selectedItemIds.isNotEmpty()) {
             Spacer(modifier = Modifier.height(16.dp))
-            val globalSelSize = scannedItems.filter { it.id in selectedItemIds }.sumOf { it.sizeBytes } / (1024 * 1024.0)
-            Button(
-                onClick = onReviewClean,
-                modifier = Modifier.fillMaxWidth().height(56.dp),
-                colors = ButtonDefaults.buttonColors(
-                    containerColor = MaterialTheme.colorScheme.primary,
-                    contentColor = MaterialTheme.colorScheme.background
-                ),
-                shape = MaterialTheme.shapes.small
-            ) {
-                Text(String.format(java.util.Locale.US, "%d SELECTED   %.1f MB   [ REVIEW SELECTION ]", selectedItemIds.size, globalSelSize), fontWeight = FontWeight.Bold)
-            }
+            val globalSelSize = analysis.categories.values.flatten().distinctBy { it.id }.filter { it.id in uiState.selectedItemIds }.sumOf { it.sizeBytes } / (1024 * 1024.0)
+            PrimaryButton(
+                text = String.format(Locale.US, "%d SELECTED   %.1f MB   [ REVIEW SELECTION ]", uiState.selectedItemIds.size, globalSelSize),
+                onClick = onReviewClean
+            )
         }
     }
 }
-
 
 @Composable
 fun CategoryRow(title: String, subtitle: String, actionText: String, onClick: () -> Unit) {
@@ -136,5 +116,6 @@ fun CategoryRow(title: String, subtitle: String, actionText: String, onClick: ()
             style = MaterialTheme.typography.bodyLarge,
             color = MaterialTheme.colorScheme.primary.copy(alpha = 0.7f)
         )
+        Divider(modifier = Modifier.padding(top = 16.dp), color = MaterialTheme.colorScheme.primary.copy(alpha = 0.1f))
     }
 }

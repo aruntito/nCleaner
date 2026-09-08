@@ -2,23 +2,23 @@ package com.nothingcleaner.ui.navigation
 
 import androidx.compose.runtime.*
 import androidx.lifecycle.viewmodel.compose.viewModel
-import com.nothingcleaner.scanner.FileCategory
-import com.nothingcleaner.ui.CleanerViewModel
+import com.nothingcleaner.core.model.StorageCategory
 import com.nothingcleaner.ui.screens.*
+import com.nothingcleaner.viewmodel.StorageViewModel
 
 sealed class Screen {
     object Dashboard : Screen()
     object Scanner : Screen()
     object Overview : Screen()
-    data class CategoryReview(val category: FileCategory) : Screen()
+    data class CategoryReview(val category: StorageCategory) : Screen()
     object CleanReview : Screen()
-    data class FilePreview(val itemId: String, val fromCategory: FileCategory?) : Screen()
+    data class FilePreview(val itemId: Long, val fromCategory: StorageCategory?) : Screen()
 }
 
 @Composable
 fun CleanerNavigation() {
     var currentScreen by remember { mutableStateOf<Screen>(Screen.Dashboard) }
-    val viewModel: CleanerViewModel = viewModel()
+    val viewModel: StorageViewModel = viewModel()
 
     when (val screen = currentScreen) {
         is Screen.Dashboard -> DashboardScreen(
@@ -27,7 +27,8 @@ fun CleanerNavigation() {
         )
         is Screen.Scanner -> ScannerScreen(
             viewModel = viewModel,
-            onScanComplete = { currentScreen = Screen.Overview }
+            onScanComplete = { currentScreen = Screen.Overview },
+            onCancel = { currentScreen = Screen.Dashboard }
         )
         is Screen.Overview -> OverviewScreen(
             viewModel = viewModel,
@@ -45,8 +46,7 @@ fun CleanerNavigation() {
             viewModel = viewModel,
             onCancel = { currentScreen = Screen.Overview },
             onCleanComplete = { 
-                viewModel.clearScannedItems()
-                currentScreen = Screen.Dashboard 
+                // We'll hook this up to MainActivity's ActivityResultLauncher later
             },
             onPreview = { id -> currentScreen = Screen.FilePreview(id, null) }
         )

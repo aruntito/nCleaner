@@ -1,6 +1,5 @@
 package com.nothingcleaner.ui.screens
 
-import androidx.annotation.OptIn
 import androidx.compose.foundation.background
 import androidx.compose.foundation.clickable
 import androidx.compose.foundation.layout.*
@@ -15,140 +14,132 @@ import androidx.compose.ui.text.font.FontWeight
 import androidx.compose.ui.unit.dp
 import androidx.compose.ui.viewinterop.AndroidView
 import androidx.media3.common.MediaItem
-import androidx.media3.common.util.UnstableApi
 import androidx.media3.exoplayer.ExoPlayer
 import androidx.media3.ui.PlayerView
 import coil.compose.AsyncImage
-import com.nothingcleaner.ui.CleanerViewModel
+import com.nothingcleaner.core.model.PreviewType
+import com.nothingcleaner.core.model.StorageItem
+import com.nothingcleaner.ui.components.PrimaryButton
+import com.nothingcleaner.ui.components.SecondaryButton
+import com.nothingcleaner.viewmodel.ScanState
+import com.nothingcleaner.viewmodel.StorageViewModel
 import java.text.SimpleDateFormat
 import java.util.Date
 import java.util.Locale
 
-@OptIn(UnstableApi::class)
 @Composable
-fun FilePreviewScreen(viewModel: CleanerViewModel, itemId: String, onBack: () -> Unit) {
-    val context = LocalContext.current
-    val scannedItems by viewModel.scannedItems.collectAsState()
-    val selectedItemIds by viewModel.selectedItemIds.collectAsState()
+fun FilePreviewScreen(viewModel: StorageViewModel, itemId: Long, onBack: () -> Unit) {
+    val uiState by viewModel.uiState.collectAsState()
+    val analysis = (uiState.scanState as? ScanState.Complete)?.analysis ?: return
     
-    val item = scannedItems.find { it.id == itemId } ?: return
-    val isSelected = selectedItemIds.contains(item.id)
-    
+    val item = analysis.categories.values.flatten().find { it.id == itemId } ?: analysis.duplicateGroups.flatten().find { it.id == itemId } ?: return
+    val isSelected = uiState.selectedItemIds.contains(item.id)
     val dateFormat = SimpleDateFormat("MMM d, yyyy", Locale.US)
-    val dateStr = if (item.dateAdded > 0) "Added " + dateFormat.format(Date(item.dateAdded * 1000L)) else ""
-    val sizeStr = String.format(Locale.US, "%.1f MB", item.sizeBytes / (1024 * 1024.0))
+    val dateStr = if (item.dateAdded != null && item.dateAdded > 0) dateFormat.format(Date(item.dateAdded * 1000L)) else ""
 
     Column(
         modifier = Modifier
             .fillMaxSize()
             .background(Color.Black)
-            .padding(top = 24.dp, start = 24.dp, end = 24.dp, bottom = 24.dp)
     ) {
-        Text(
-            text = "← BACK",
-            style = MaterialTheme.typography.bodyLarge,
-            fontWeight = FontWeight.Bold,
-            color = Color.White,
-            modifier = Modifier
-                .clickable { onBack() }
-                .padding(bottom = 16.dp)
-        )
-        
-        Text(
-            text = item.name.uppercase(),
-            style = MaterialTheme.typography.titleMedium,
-            color = Color.White,
-            maxLines = 1
-        )
-        
-        Divider(color = Color.White.copy(alpha = 0.2f), modifier = Modifier.padding(vertical = 16.dp))
-
-        Box(
-            modifier = Modifier
-                .weight(1f)
-                .fillMaxWidth(),
-            contentAlignment = Alignment.Center
+        Row(
+            modifier = Modifier.fillMaxWidth().padding(16.dp),
+            verticalAlignment = Alignment.CenterVertically
         ) {
-            when {
-                item.mimeType.startsWith("image/") -> {
-                    AsyncImage(
-                        model = item.uri,
-                        contentDescription = null,
-                        contentScale = ContentScale.Fit,
-                        modifier = Modifier.fillMaxSize()
-                    )
-                }
-                item.mimeType.startsWith("video/") -> {
-                    var player by remember { mutableStateOf<ExoPlayer?>(null) }
-                    
-                    DisposableEffect(Unit) {
-                        val exoPlayer = ExoPlayer.Builder(context).build().apply {
-                            setMediaItem(MediaItem.fromUri(item.uri))
-                            prepare()
-                            playWhenReady = false
-                        }
-                        player = exoPlayer
-                        onDispose {
-                            exoPlayer.release()
-                        }
-                    }
-                    
-                    player?.let {
-                        AndroidView(
-                            factory = { ctx ->
-                                PlayerView(ctx).apply {
-                                    this.player = it
-                                    setShowNextButton(false)
-                                    setShowPreviousButton(false)
-                                }
-                            },
-                            modifier = Modifier.fillMaxSize()
-                        )
-                    }
-                }
+            Text(
+                text = "←",
+                style = MaterialTheme.typography.headlineMedium,
+                color = Color.White,
+                modifier = Modifier.clickable { onBack() }.padding(16.dp)
+            )
+            Spacer(modifier = Modifier.width(16.dp))
+            Column {
+                Text(
+                    text = item.displayName,
+                    style = MaterialTheme.typography.bodyLarge,
+                    color = Color.White,
+                    maxLines = 1
+                )
+                Text(
+                    text = String.format(Locale.US, "%.1f MB • %s", item.sizeBytes / (1024 * 1024.0), dateStr),
+                    style = MaterialTheme.typography.bodySmall,
+                    color = Color.White.copy(alpha = 0.7f)
+                )
+            }
+        }
+        
+        Box(modifier = Modifier.weight(1f).fillMaxWidth()) {
+            when (item.previewType) {
+                PreviewType.VIDEO -> VideoPreview(item)
+                PreviewType.IMAGE -> AsyncImage(
+                    model = item.uri,
+                    contentDescription = null,
+                    contentScale = ContentScale.Fit,
+                    modifier = Modifier.fillMaxSize()
+                )
                 else -> {
-                    Column(horizontalAlignment = Alignment.CenterHorizontally) {
-                        Text(
-                            text = "[ FILE ]",
-                            style = MaterialTheme.typography.displayMedium,
-                            color = Color.White.copy(alpha = 0.5f)
-                        )
-                        Spacer(modifier = Modifier.height(24.dp))
-                        Text(
-                            text = "TYPE: ${item.mimeType}",
-                            style = MaterialTheme.typography.bodyLarge,
-                            color = Color.White
-                        )
+                    Column(
+                        modifier = Modifier.align(Alignment.Center),
+                        horizontalAlignment = Alignment.CenterHorizontally
+                    ) {
+                        Text("FILE INFORMATION", color = Color.White)
+                        Text(item.mimeType ?: "Unknown", color = Color.White.copy(alpha = 0.5f))
                     }
                 }
             }
         }
         
-        Divider(color = Color.White.copy(alpha = 0.2f), modifier = Modifier.padding(vertical = 16.dp))
-        
-        Text(text = item.name, style = MaterialTheme.typography.bodyLarge, color = Color.White, maxLines = 1)
-        Text(text = "$sizeStr • $dateStr", style = MaterialTheme.typography.bodyMedium, color = Color.White.copy(alpha = 0.7f))
-        
-        Spacer(modifier = Modifier.height(24.dp))
-        
         Row(
-            modifier = Modifier.fillMaxWidth(),
-            horizontalArrangement = Arrangement.SpaceBetween
+            modifier = Modifier.fillMaxWidth().padding(24.dp),
+            horizontalArrangement = Arrangement.spacedBy(16.dp)
         ) {
-            Text(
-                text = if (!isSelected) "[ KEEP ]" else "  KEEP  ",
-                style = MaterialTheme.typography.bodyLarge,
-                fontWeight = if (!isSelected) FontWeight.Bold else FontWeight.Normal,
-                color = if (!isSelected) Color.White else Color.White.copy(alpha = 0.4f),
-                modifier = Modifier.clickable { if (isSelected) viewModel.toggleSelection(item.id) }.padding(16.dp)
+            SecondaryButton(
+                text = "KEEP",
+                onClick = { 
+                    if (isSelected) viewModel.toggleSelection(item.id)
+                    onBack()
+                },
+                modifier = Modifier.weight(1f)
             )
-            Text(
-                text = if (isSelected) "[ SELECT ]" else "  SELECT  ",
-                style = MaterialTheme.typography.bodyLarge,
-                fontWeight = if (isSelected) FontWeight.Bold else FontWeight.Normal,
-                color = if (isSelected) Color.Red else Color.White.copy(alpha = 0.4f),
-                modifier = Modifier.clickable { if (!isSelected) viewModel.toggleSelection(item.id) }.padding(16.dp)
+            
+            PrimaryButton(
+                text = if (isSelected) "SELECTED ✓" else "SELECT",
+                onClick = { 
+                    if (!isSelected) viewModel.toggleSelection(item.id)
+                    onBack()
+                },
+                modifier = Modifier.weight(1f)
             )
         }
     }
+}
+
+@Composable
+fun VideoPreview(item: StorageItem) {
+    val context = LocalContext.current
+    var player by remember { mutableStateOf<ExoPlayer?>(null) }
+    
+    DisposableEffect(item.uri) {
+        val exoPlayer = ExoPlayer.Builder(context).build().apply {
+            setMediaItem(MediaItem.fromUri(item.uri))
+            prepare()
+            playWhenReady = true
+        }
+        player = exoPlayer
+        
+        onDispose {
+            exoPlayer.release()
+            player = null
+        }
+    }
+    
+    AndroidView(
+        factory = {
+            PlayerView(context).apply {
+                this.player = player
+                useController = true
+            }
+        },
+        modifier = Modifier.fillMaxSize()
+    )
 }

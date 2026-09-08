@@ -3,17 +3,23 @@ package com.nothingcleaner.ui.screens
 import androidx.compose.foundation.layout.*
 import androidx.compose.material3.*
 import androidx.compose.runtime.*
+import androidx.compose.ui.Alignment
 import androidx.compose.ui.Modifier
 import androidx.compose.ui.text.font.FontWeight
 import androidx.compose.ui.unit.dp
-import com.nothingcleaner.ui.CleanerViewModel
+import com.nothingcleaner.ui.components.SecondaryButton
+import com.nothingcleaner.viewmodel.ScanState
+import com.nothingcleaner.viewmodel.StorageViewModel
 
 @Composable
-fun ScannerScreen(viewModel: CleanerViewModel, onScanComplete: () -> Unit) {
-    val phase by viewModel.scanPhase.collectAsState()
-    
-    LaunchedEffect(Unit) {
-        viewModel.startScan(onComplete = onScanComplete)
+fun ScannerScreen(viewModel: StorageViewModel, onScanComplete: () -> Unit, onCancel: () -> Unit) {
+    val uiState by viewModel.uiState.collectAsState()
+    val scanState = uiState.scanState
+
+    LaunchedEffect(scanState) {
+        if (scanState is ScanState.Complete) {
+            onScanComplete()
+        }
     }
 
     Column(
@@ -26,34 +32,54 @@ fun ScannerScreen(viewModel: CleanerViewModel, onScanComplete: () -> Unit) {
             style = MaterialTheme.typography.titleLarge,
             color = MaterialTheme.colorScheme.primary
         )
-        
-        Spacer(modifier = Modifier.height(48.dp))
-        
-        // Simulating the log-like UI the user requested
-        val phases = listOf(
-            "Checking available storage...",
-            "Scanning downloads...",
-            "Finding large files...",
-            "Organizing results..."
-        )
-        
-        phases.forEach { p ->
-            val isCurrent = phase == p
-            val isDone = phases.indexOf(p) < phases.indexOf(phase)
-            
-            val icon = when {
-                isDone -> "✓"
-                isCurrent -> "●"
-                else -> "○"
+
+        Spacer(modifier = Modifier.weight(1f))
+
+        when (scanState) {
+            is ScanState.Scanning -> {
+                Text(
+                    text = scanState.currentStep.description,
+                    style = MaterialTheme.typography.bodyLarge,
+                    fontWeight = FontWeight.Bold
+                )
+                Spacer(modifier = Modifier.height(16.dp))
+                LinearProgressIndicator(
+                    progress = scanState.progress,
+                    modifier = Modifier.fillMaxWidth().height(4.dp),
+                    color = MaterialTheme.colorScheme.primary,
+                    trackColor = MaterialTheme.colorScheme.primary.copy(alpha = 0.2f)
+                )
+                Text(
+                    text = "${(scanState.progress * 100).toInt()}%",
+                    style = MaterialTheme.typography.labelMedium,
+                    modifier = Modifier.align(Alignment.End).padding(top = 8.dp)
+                )
             }
-            
-            Text(
-                text = "$icon $p",
-                style = MaterialTheme.typography.bodyLarge,
-                color = if (isDone || isCurrent) MaterialTheme.colorScheme.primary else MaterialTheme.colorScheme.primary.copy(alpha = 0.3f),
-                fontWeight = if (isCurrent) FontWeight.Bold else FontWeight.Normal,
-                modifier = Modifier.padding(vertical = 8.dp)
-            )
+            is ScanState.Error -> {
+                Text(
+                    text = "ERROR",
+                    style = MaterialTheme.typography.titleMedium,
+                    color = MaterialTheme.colorScheme.error
+                )
+                Text(
+                    text = scanState.message,
+                    style = MaterialTheme.typography.bodyLarge,
+                    color = MaterialTheme.colorScheme.primary.copy(alpha = 0.7f)
+                )
+            }
+            else -> {
+                CircularProgressIndicator(color = MaterialTheme.colorScheme.primary)
+            }
         }
+
+        Spacer(modifier = Modifier.weight(1f))
+
+        SecondaryButton(
+            text = "CANCEL",
+            onClick = {
+                viewModel.cancelScan()
+                onCancel()
+            }
+        )
     }
 }

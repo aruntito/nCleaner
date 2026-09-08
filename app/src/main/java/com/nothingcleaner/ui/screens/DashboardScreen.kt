@@ -2,20 +2,20 @@ package com.nothingcleaner.ui.screens
 
 import androidx.compose.foundation.layout.*
 import androidx.compose.material3.*
-import androidx.compose.runtime.*
+import androidx.compose.runtime.Composable
+import androidx.compose.runtime.collectAsState
+import androidx.compose.runtime.getValue
 import androidx.compose.ui.Modifier
 import androidx.compose.ui.text.font.FontWeight
 import androidx.compose.ui.unit.dp
-import androidx.compose.ui.unit.sp
-import com.nothingcleaner.ui.CleanerViewModel
-import com.nothingcleaner.ui.theme.NothingRed
-import com.nothingcleaner.util.StorageUtil
+import com.nothingcleaner.ui.components.PrimaryButton
+import com.nothingcleaner.viewmodel.StorageViewModel
 import java.util.Locale
 
 @Composable
-fun DashboardScreen(viewModel: CleanerViewModel, onAnalyze: () -> Unit) {
-    var stats by remember { mutableStateOf(StorageUtil.getStorageStats()) }
-    val scannedItems by viewModel.scannedItems.collectAsState()
+fun DashboardScreen(viewModel: StorageViewModel, onAnalyze: () -> Unit) {
+    val uiState by viewModel.uiState.collectAsState()
+    val summary = uiState.storageSummary
 
     Column(
         modifier = Modifier
@@ -27,85 +27,68 @@ fun DashboardScreen(viewModel: CleanerViewModel, onAnalyze: () -> Unit) {
             style = MaterialTheme.typography.titleLarge,
             color = MaterialTheme.colorScheme.primary
         )
+        
         Spacer(modifier = Modifier.height(48.dp))
         
         Text(
             text = "STORAGE",
-            style = MaterialTheme.typography.labelSmall,
+            style = MaterialTheme.typography.labelLarge,
             color = MaterialTheme.colorScheme.primary
         )
         
-        Spacer(modifier = Modifier.height(8.dp))
-        
-        val usedGb = stats.usedBytes / (1024 * 1024 * 1024.0)
-        val totalGb = stats.totalBytes / (1024 * 1024 * 1024.0)
-        
-        Text(
-            text = String.format(Locale.US, "%.1f GB", usedGb),
-            fontSize = 48.sp,
-            fontWeight = FontWeight.Bold,
-            color = MaterialTheme.colorScheme.primary
-        )
-        Text(
-            text = String.format(Locale.US, "USED OF %.1f GB", totalGb),
-            style = MaterialTheme.typography.bodyLarge,
-            color = MaterialTheme.colorScheme.primary.copy(alpha = 0.7f)
-        )
-        
-        Spacer(modifier = Modifier.height(24.dp))
-        
-        LinearProgressIndicator(
-            progress = (stats.usedBytes.toDouble() / stats.totalBytes).toFloat(),
-            modifier = Modifier
-                .fillMaxWidth()
-                .height(8.dp),
-            color = NothingRed,
-            trackColor = MaterialTheme.colorScheme.surface
-        )
-        
-        Spacer(modifier = Modifier.height(48.dp))
-        
-        Text(
-            text = "STORAGE ANALYSIS",
-            style = MaterialTheme.typography.labelSmall,
-            color = MaterialTheme.colorScheme.primary
-        )
-        Spacer(modifier = Modifier.height(8.dp))
-        Text(
-            text = "Understand what's taking space before deleting anything.",
-            style = MaterialTheme.typography.bodyLarge,
-            color = MaterialTheme.colorScheme.primary.copy(alpha = 0.7f)
-        )
+        if (summary != null) {
+            val usedGb = summary.usedBytes / (1024 * 1024 * 1024.0)
+            val totalGb = summary.totalBytes / (1024 * 1024 * 1024.0)
+            val progress = (summary.usedBytes.toFloat() / summary.totalBytes.toFloat()).coerceIn(0f, 1f)
 
-        if (scannedItems.isNotEmpty()) {
-            Spacer(modifier = Modifier.height(16.dp))
-            val totalSize = scannedItems.sumOf { it.sizeBytes }
             Text(
-                text = String.format(Locale.US, "LAST ANALYSIS %.1f MB REVIEWABLE", totalSize / (1024 * 1024.0)),
-                style = MaterialTheme.typography.bodyLarge,
+                text = String.format(Locale.US, "%.1f GB", usedGb),
+                style = MaterialTheme.typography.displayLarge,
                 fontWeight = FontWeight.Bold,
                 color = MaterialTheme.colorScheme.primary
+            )
+            Text(
+                text = String.format(Locale.US, "USED OF %.1f GB", totalGb),
+                style = MaterialTheme.typography.bodyLarge,
+                color = MaterialTheme.colorScheme.primary.copy(alpha = 0.7f)
+            )
+            
+            Spacer(modifier = Modifier.height(16.dp))
+            LinearProgressIndicator(
+                progress = progress,
+                modifier = Modifier.fillMaxWidth().height(8.dp),
+                color = MaterialTheme.colorScheme.primary,
+                trackColor = MaterialTheme.colorScheme.primary.copy(alpha = 0.2f)
+            )
+            
+            Text(
+                text = "${(progress * 100).toInt()}% USED",
+                style = MaterialTheme.typography.labelMedium,
+                modifier = Modifier.padding(top = 8.dp)
             )
         }
         
         Spacer(modifier = Modifier.weight(1f))
         
-        Button(
-            onClick = onAnalyze,
-            modifier = Modifier
-                .fillMaxWidth()
-                .height(56.dp),
-            colors = ButtonDefaults.buttonColors(
-                containerColor = MaterialTheme.colorScheme.primary,
-                contentColor = MaterialTheme.colorScheme.background
-            ),
-            shape = MaterialTheme.shapes.small
-        ) {
-            Text(
-                "ANALYZE STORAGE", 
-                style = MaterialTheme.typography.bodyLarge,
-                fontWeight = FontWeight.Bold
-            )
-        }
+        Text(
+            text = "STORAGE ANALYSIS",
+            style = MaterialTheme.typography.titleMedium,
+            fontWeight = FontWeight.Bold
+        )
+        Text(
+            text = "Understand what's taking space
+before deleting anything.",
+            style = MaterialTheme.typography.bodyLarge,
+            color = MaterialTheme.colorScheme.primary.copy(alpha = 0.7f),
+            modifier = Modifier.padding(top = 8.dp, bottom = 24.dp)
+        )
+        
+        PrimaryButton(
+            text = "ANALYZE STORAGE",
+            onClick = {
+                viewModel.startScan()
+                onAnalyze()
+            }
+        )
     }
 }
