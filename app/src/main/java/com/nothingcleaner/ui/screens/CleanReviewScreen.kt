@@ -1,5 +1,6 @@
 package com.nothingcleaner.ui.screens
 
+import androidx.compose.foundation.clickable
 import androidx.compose.foundation.layout.*
 import androidx.compose.foundation.lazy.LazyColumn
 import androidx.compose.foundation.lazy.items
@@ -15,7 +16,7 @@ import kotlinx.coroutines.launch
 import java.util.Locale
 
 @Composable
-fun CleanReviewScreen(viewModel: CleanerViewModel, onCancel: () -> Unit, onCleanComplete: () -> Unit) {
+fun CleanReviewScreen(viewModel: CleanerViewModel, onCancel: () -> Unit, onCleanComplete: () -> Unit, onPreview: (String) -> Unit) {
     val context = LocalContext.current
     val scope = rememberCoroutineScope()
     
@@ -26,6 +27,13 @@ fun CleanReviewScreen(viewModel: CleanerViewModel, onCancel: () -> Unit, onClean
     val totalSelectedMb = selectedItems.sumOf { it.sizeBytes } / (1024 * 1024.0)
 
     var isCleaning by remember { mutableStateOf(false) }
+
+    // If selections become empty (e.g. they unchecked everything from preview), auto go back
+    LaunchedEffect(selectedItemIds) {
+        if (selectedItemIds.isEmpty() && !isCleaning) {
+            onCancel()
+        }
+    }
 
     Column(
         modifier = Modifier
@@ -54,7 +62,10 @@ fun CleanReviewScreen(viewModel: CleanerViewModel, onCancel: () -> Unit, onClean
         LazyColumn(modifier = Modifier.weight(1f).padding(vertical = 8.dp)) {
             items(selectedItems) { item ->
                 Row(
-                    modifier = Modifier.fillMaxWidth().padding(vertical = 4.dp),
+                    modifier = Modifier
+                        .fillMaxWidth()
+                        .clickable { onPreview(item.id) }
+                        .padding(vertical = 12.dp),
                     horizontalArrangement = Arrangement.SpaceBetween
                 ) {
                     Text(
@@ -64,7 +75,7 @@ fun CleanReviewScreen(viewModel: CleanerViewModel, onCancel: () -> Unit, onClean
                         modifier = Modifier.weight(1f).padding(end = 16.dp)
                     )
                     Text(
-                        text = String.format(Locale.US, "%.1f MB", item.sizeBytes / (1024 * 1024.0)),
+                        text = String.format(Locale.US, "%.1f MB  ›", item.sizeBytes / (1024 * 1024.0)),
                         style = MaterialTheme.typography.bodyMedium
                     )
                 }
@@ -107,7 +118,7 @@ fun CleanReviewScreen(viewModel: CleanerViewModel, onCancel: () -> Unit, onClean
                     }
                 },
                 modifier = Modifier.weight(1f).height(56.dp),
-                enabled = !isCleaning,
+                enabled = !isCleaning && selectedItems.isNotEmpty(),
                 colors = ButtonDefaults.buttonColors(
                     containerColor = MaterialTheme.colorScheme.error,
                     contentColor = MaterialTheme.colorScheme.onError

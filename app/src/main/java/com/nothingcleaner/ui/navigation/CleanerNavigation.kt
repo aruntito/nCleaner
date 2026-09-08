@@ -12,6 +12,7 @@ sealed class Screen {
     object Overview : Screen()
     data class CategoryReview(val category: FileCategory) : Screen()
     object CleanReview : Screen()
+    data class FilePreview(val itemId: String, val fromCategory: FileCategory?) : Screen()
 }
 
 @Composable
@@ -36,7 +37,8 @@ fun CleanerNavigation() {
         is Screen.CategoryReview -> CategoryReviewScreen(
             viewModel = viewModel,
             category = screen.category,
-            onBack = { currentScreen = Screen.Overview }
+            onBack = { currentScreen = Screen.Overview },
+            onPreview = { id -> currentScreen = Screen.FilePreview(id, screen.category) }
         )
         is Screen.CleanReview -> CleanReviewScreen(
             viewModel = viewModel,
@@ -44,6 +46,18 @@ fun CleanerNavigation() {
             onCleanComplete = { 
                 viewModel.clearScannedItems()
                 currentScreen = Screen.Dashboard 
+            },
+            onPreview = { id -> currentScreen = Screen.FilePreview(id, null) }
+        )
+        is Screen.FilePreview -> FilePreviewScreen(
+            viewModel = viewModel,
+            itemId = screen.itemId,
+            onBack = { 
+                currentScreen = if (screen.fromCategory != null) {
+                    Screen.CategoryReview(screen.fromCategory)
+                } else {
+                    Screen.CleanReview
+                }
             }
         )
     }

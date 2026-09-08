@@ -9,7 +9,8 @@ data class ScannerItem(
     val sizeBytes: Long,
     val dateAdded: Long,
     val category: FileCategory,
-    val path: String
+    val path: String,
+    val mimeType: String
 ) {
     override fun equals(other: Any?): Boolean {
         if (this === other) return true
