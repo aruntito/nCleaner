@@ -38,6 +38,7 @@ fun CleanerNavigation() {
             viewModel = viewModel,
             category = screen.category,
             onBack = { currentScreen = Screen.Overview },
+            onReviewSelection = { currentScreen = Screen.CleanReview },
             onPreview = { id -> currentScreen = Screen.FilePreview(id, screen.category) }
         )
         is Screen.CleanReview -> CleanReviewScreen(

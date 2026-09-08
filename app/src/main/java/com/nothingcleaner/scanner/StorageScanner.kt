@@ -19,7 +19,7 @@ class StorageScanner(private val context: Context) {
         MediaStore.MediaColumns.MIME_TYPE
     )
 
-    private fun extractItem(cursor: android.database.Cursor, collection: Uri, category: FileCategory): ScannerItem {
+    private fun extractItem(cursor: android.database.Cursor, collection: Uri): ScannerItem {
         val idColumn = cursor.getColumnIndexOrThrow(MediaStore.MediaColumns._ID)
         val nameColumn = cursor.getColumnIndexOrThrow(MediaStore.MediaColumns.DISPLAY_NAME)
         val sizeColumn = cursor.getColumnIndexOrThrow(MediaStore.MediaColumns.SIZE)
@@ -35,40 +35,46 @@ class StorageScanner(private val context: Context) {
         val mimeType = cursor.getString(mimeTypeColumn) ?: "application/octet-stream"
         val uri = Uri.withAppendedPath(collection, id.toString())
 
-        return ScannerItem(id.toString(), name, uri, size, dateAdded, category, data, mimeType)
+        // Category is assigned later to avoid double-counting
+        return ScannerItem(id.toString(), name, uri, size, dateAdded, FileCategory.LARGE_FILES, data, mimeType)
     }
 
-    suspend fun scanDownloads(): List<ScannerItem> = withContext(Dispatchers.IO) {
+    suspend fun scanAllMedia(): List<ScannerItem> = withContext(Dispatchers.IO) {
         val items = mutableListOf<ScannerItem>()
-        val collection = if (Build.VERSION.SDK_INT >= Build.VERSION_CODES.Q) {
+        
+        // Scan Videos
+        context.contentResolver.query(
+            MediaStore.Video.Media.EXTERNAL_CONTENT_URI, 
+            projection, null, null, null
+        )?.use { cursor ->
+            while (cursor.moveToNext()) items.add(extractItem(cursor, MediaStore.Video.Media.EXTERNAL_CONTENT_URI))
+        }
+
+        // Scan Images
+        context.contentResolver.query(
+            MediaStore.Images.Media.EXTERNAL_CONTENT_URI, 
+            projection, null, null, null
+        )?.use { cursor ->
+            while (cursor.moveToNext()) items.add(extractItem(cursor, MediaStore.Images.Media.EXTERNAL_CONTENT_URI))
+        }
+
+        // Scan Downloads
+        val downloadsUri = if (Build.VERSION.SDK_INT >= Build.VERSION_CODES.Q) {
             MediaStore.Downloads.EXTERNAL_CONTENT_URI
         } else {
             MediaStore.Files.getContentUri("external")
         }
-
-        val selection = if (Build.VERSION.SDK_INT < Build.VERSION_CODES.Q) {
+        val dlSelection = if (Build.VERSION.SDK_INT < Build.VERSION_CODES.Q) {
             MediaStore.MediaColumns.DATA + " LIKE '%/Download/%'"
         } else null
 
-        context.contentResolver.query(collection, projection, selection, null, "${MediaStore.MediaColumns.DATE_ADDED} DESC")?.use { cursor ->
-            while (cursor.moveToNext()) {
-                items.add(extractItem(cursor, collection, FileCategory.DOWNLOADS))
-            }
+        context.contentResolver.query(
+            downloadsUri, 
+            projection, dlSelection, null, null
+        )?.use { cursor ->
+            while (cursor.moveToNext()) items.add(extractItem(cursor, downloadsUri))
         }
-        items
-    }
-    
-    suspend fun scanLargeFiles(thresholdBytes: Long = 100 * 1024 * 1024): List<ScannerItem> = withContext(Dispatchers.IO) {
-        val items = mutableListOf<ScannerItem>()
-        val collection = MediaStore.Video.Media.EXTERNAL_CONTENT_URI
-        val selection = "${MediaStore.MediaColumns.SIZE} >= ?"
-        val selectionArgs = arrayOf(thresholdBytes.toString())
-
-        context.contentResolver.query(collection, projection, selection, selectionArgs, "${MediaStore.MediaColumns.SIZE} DESC")?.use { cursor ->
-            while (cursor.moveToNext()) {
-                items.add(extractItem(cursor, collection, FileCategory.LARGE_FILES))
-            }
-        }
+        
         items
     }
 }

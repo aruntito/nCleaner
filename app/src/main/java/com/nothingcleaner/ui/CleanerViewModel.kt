@@ -31,35 +31,40 @@ class CleanerViewModel(application: Application) : AndroidViewModel(application)
         viewModelScope.launch {
             _isScanning.value = true
             _selectedItemIds.value = emptySet()
-            _scannedItems.value = emptyList()
             
-            val allItems = mutableListOf<ScannerItem>()
-            val seenIds = mutableSetOf<String>()
+            _scanPhase.value = "Checking storage..."
+            delay(500)
 
-            _scanPhase.value = "Checking available storage..."
-            delay(500) // Small intentional delay to show the phase
-
-            _scanPhase.value = "Scanning downloads..."
-            val downloads = scanner.scanDownloads()
-            for (item in downloads) {
-                if (seenIds.add(item.id)) allItems.add(item)
-            }
-
-            _scanPhase.value = "Finding large files..."
-            val largeFiles = scanner.scanLargeFiles()
-            for (item in largeFiles) {
-                // Determine true category to avoid double counting
-                if (seenIds.add(item.id)) {
-                    val isScreenRecording = item.name.contains("Screen", ignoreCase = true) || item.path.contains("Screenrecord", ignoreCase = true)
-                    val cat = if (isScreenRecording) FileCategory.SCREEN_RECORDINGS else FileCategory.LARGE_FILES
-                    allItems.add(item.copy(category = cat))
-                }
-            }
-
+            _scanPhase.value = "Scanning media & files..."
+            val rawItems = scanner.scanAllMedia()
+            
             _scanPhase.value = "Organizing results..."
-            delay(300)
+            val seenIds = mutableSetOf<String>()
+            val categorized = mutableListOf<ScannerItem>()
+            
+            // Priority assignment to avoid double counting
+            for (item in rawItems.sortedByDescending { it.sizeBytes }) {
+                if (!seenIds.add(item.id)) continue
+                
+                val pathStr = item.path.lowercase()
+                val nameStr = item.name.lowercase()
+                val isVideo = item.mimeType.startsWith("video/")
+                val isImage = item.mimeType.startsWith("image/")
+                
+                val category = when {
+                    isVideo && (pathStr.contains("screenrecord") || nameStr.contains("screen")) -> FileCategory.SCREEN_RECORDINGS
+                    isImage && (pathStr.contains("screenshot") || nameStr.contains("screenshot")) -> FileCategory.SCREENSHOTS
+                    pathStr.contains("/download/") -> FileCategory.DOWNLOADS
+                    item.sizeBytes > 100 * 1024 * 1024 -> FileCategory.LARGE_FILES
+                    isVideo -> FileCategory.VIDEOS
+                    isImage -> FileCategory.IMAGES
+                    else -> FileCategory.DOWNLOADS // Fallback
+                }
+                
+                categorized.add(item.copy(category = category))
+            }
 
-            _scannedItems.value = allItems
+            _scannedItems.value = categorized
             _isScanning.value = false
             onComplete()
         }

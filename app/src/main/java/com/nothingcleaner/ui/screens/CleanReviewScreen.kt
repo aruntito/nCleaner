@@ -6,10 +6,12 @@ import androidx.compose.foundation.lazy.LazyColumn
 import androidx.compose.foundation.lazy.items
 import androidx.compose.material3.*
 import androidx.compose.runtime.*
+import androidx.compose.ui.Alignment
 import androidx.compose.ui.Modifier
 import androidx.compose.ui.platform.LocalContext
 import androidx.compose.ui.text.font.FontWeight
 import androidx.compose.ui.unit.dp
+import coil.compose.AsyncImage
 import com.nothingcleaner.storage.CleanerService
 import com.nothingcleaner.ui.CleanerViewModel
 import kotlinx.coroutines.launch
@@ -28,7 +30,6 @@ fun CleanReviewScreen(viewModel: CleanerViewModel, onCancel: () -> Unit, onClean
 
     var isCleaning by remember { mutableStateOf(false) }
 
-    // If selections become empty (e.g. they unchecked everything from preview), auto go back
     LaunchedEffect(selectedItemIds) {
         if (selectedItemIds.isEmpty() && !isCleaning) {
             onCancel()
@@ -41,42 +42,49 @@ fun CleanReviewScreen(viewModel: CleanerViewModel, onCancel: () -> Unit, onClean
             .padding(24.dp)
     ) {
         Text(
-            text = "READY TO CLEAN",
+            text = "REVIEW CLEANUP",
             style = MaterialTheme.typography.titleLarge,
             color = MaterialTheme.colorScheme.primary
         )
         Text(
-            text = String.format(Locale.US, "%d FILES | %.1f MB", selectedItems.size, totalSelectedMb),
+            text = String.format(Locale.US, "%d FILES   %.1f MB", selectedItems.size, totalSelectedMb),
             style = MaterialTheme.typography.bodyLarge,
             color = MaterialTheme.colorScheme.primary.copy(alpha = 0.7f)
         )
         
         Spacer(modifier = Modifier.height(24.dp))
         
-        Text(
-            text = "YOU SELECTED",
-            style = MaterialTheme.typography.labelSmall,
-            color = MaterialTheme.colorScheme.primary
-        )
-        
-        LazyColumn(modifier = Modifier.weight(1f).padding(vertical = 8.dp)) {
+        LazyColumn(modifier = Modifier.weight(1f)) {
             items(selectedItems) { item ->
                 Row(
                     modifier = Modifier
                         .fillMaxWidth()
                         .clickable { onPreview(item.id) }
                         .padding(vertical = 12.dp),
-                    horizontalArrangement = Arrangement.SpaceBetween
+                    verticalAlignment = Alignment.CenterVertically
                 ) {
+                    Box(
+                        modifier = Modifier
+                            .size(48.dp)
+                    ) {
+                        if (item.mimeType.startsWith("image/") || item.mimeType.startsWith("video/")) {
+                            AsyncImage(
+                                model = item.uri,
+                                contentDescription = null,
+                                modifier = Modifier.fillMaxSize()
+                            )
+                        } else {
+                            Text(text = "FILE", modifier = Modifier.align(Alignment.Center))
+                        }
+                    }
+                    
+                    Spacer(modifier = Modifier.width(16.dp))
+                    
                     Text(
                         text = item.name,
                         style = MaterialTheme.typography.bodyMedium,
                         maxLines = 1,
                         modifier = Modifier.weight(1f).padding(end = 16.dp)
-                    )
-                    Text(
-                        text = String.format(Locale.US, "%.1f MB  ›", item.sizeBytes / (1024 * 1024.0)),
-                        style = MaterialTheme.typography.bodyMedium
                     )
                 }
             }
@@ -85,9 +93,9 @@ fun CleanReviewScreen(viewModel: CleanerViewModel, onCancel: () -> Unit, onClean
         Spacer(modifier = Modifier.height(16.dp))
         
         Text(
-            text = "These selected files will be permanently removed.",
+            text = "Nothing else will be removed.",
             style = MaterialTheme.typography.bodyMedium,
-            color = MaterialTheme.colorScheme.error,
+            color = MaterialTheme.colorScheme.primary.copy(alpha = 0.7f),
             fontWeight = FontWeight.Bold
         )
         
@@ -126,7 +134,7 @@ fun CleanReviewScreen(viewModel: CleanerViewModel, onCancel: () -> Unit, onClean
                 shape = MaterialTheme.shapes.small
             ) {
                 Text(
-                    if (isCleaning) "CLEANING..." else String.format(Locale.US, "[ CLEAN %.1f MB ]", totalSelectedMb), 
+                    if (isCleaning) "CLEANING..." else "CLEAN", 
                     fontWeight = FontWeight.Bold
                 )
             }

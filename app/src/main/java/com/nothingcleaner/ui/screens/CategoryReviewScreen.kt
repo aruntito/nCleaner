@@ -22,7 +22,7 @@ import java.util.Date
 import java.util.Locale
 
 @Composable
-fun CategoryReviewScreen(viewModel: CleanerViewModel, category: FileCategory, onBack: () -> Unit, onPreview: (String) -> Unit) {
+fun CategoryReviewScreen(viewModel: CleanerViewModel, category: FileCategory, onBack: () -> Unit, onReviewSelection: () -> Unit, onPreview: (String) -> Unit) {
     val scannedItems by viewModel.scannedItems.collectAsState()
     val selectedItemIds by viewModel.selectedItemIds.collectAsState()
     
@@ -34,113 +34,138 @@ fun CategoryReviewScreen(viewModel: CleanerViewModel, category: FileCategory, on
     Column(
         modifier = Modifier
             .fillMaxSize()
-            .padding(24.dp)
+            .background(MaterialTheme.colorScheme.background)
     ) {
-        Text(
-            text = category.displayName,
-            style = MaterialTheme.typography.titleLarge,
-            color = MaterialTheme.colorScheme.primary
-        )
-        Text(
-            text = String.format(Locale.US, "%.1f MB • %d FILES", totalSizeMb, categoryItems.size),
-            style = MaterialTheme.typography.bodyLarge,
-            color = MaterialTheme.colorScheme.primary.copy(alpha = 0.7f)
-        )
-        
-        Spacer(modifier = Modifier.height(24.dp))
-        
-        LazyColumn(modifier = Modifier.weight(1f)) {
-            items(categoryItems) { item ->
-                val isSelected = selectedItemIds.contains(item.id)
-                val dateStr = if (item.dateAdded > 0) "Added " + dateFormat.format(Date(item.dateAdded * 1000L)) else ""
-                
-                Row(
-                    modifier = Modifier
-                        .fillMaxWidth()
-                        .padding(vertical = 12.dp)
-                        .clickable { onPreview(item.id) },
-                    verticalAlignment = Alignment.CenterVertically
-                ) {
-                    Box(
+        Column(modifier = Modifier.padding(24.dp).weight(1f)) {
+            Text(
+                text = "← BACK",
+                style = MaterialTheme.typography.bodyLarge,
+                fontWeight = FontWeight.Bold,
+                color = MaterialTheme.colorScheme.primary,
+                modifier = Modifier
+                    .clickable { onBack() }
+                    .padding(bottom = 16.dp)
+            )
+            
+            Text(
+                text = category.displayName,
+                style = MaterialTheme.typography.titleLarge,
+                color = MaterialTheme.colorScheme.primary
+            )
+            Text(
+                text = String.format(Locale.US, "%d ITEMS   %.1f MB", categoryItems.size, totalSizeMb),
+                style = MaterialTheme.typography.bodyLarge,
+                color = MaterialTheme.colorScheme.primary.copy(alpha = 0.7f)
+            )
+            
+            Spacer(modifier = Modifier.height(24.dp))
+            
+            LazyColumn(modifier = Modifier.fillMaxSize()) {
+                items(categoryItems) { item ->
+                    val isSelected = selectedItemIds.contains(item.id)
+                    val dateStr = if (item.dateAdded > 0) dateFormat.format(Date(item.dateAdded * 1000L)) else ""
+                    
+                    Row(
                         modifier = Modifier
-                            .size(64.dp)
-                            .background(MaterialTheme.colorScheme.surfaceVariant)
+                            .fillMaxWidth()
+                            .padding(vertical = 12.dp),
+                        verticalAlignment = Alignment.CenterVertically
                     ) {
-                        if (item.mimeType.startsWith("image/") || item.mimeType.startsWith("video/")) {
-                            AsyncImage(
-                                model = item.uri,
-                                contentDescription = null,
-                                contentScale = ContentScale.Crop,
-                                modifier = Modifier.fillMaxSize()
-                            )
-                        } else {
+                        // Thumbnail - clicking opens preview
+                        Box(
+                            modifier = Modifier
+                                .size(64.dp)
+                                .background(MaterialTheme.colorScheme.surfaceVariant)
+                                .clickable { onPreview(item.id) }
+                        ) {
+                            if (item.mimeType.startsWith("image/") || item.mimeType.startsWith("video/")) {
+                                AsyncImage(
+                                    model = item.uri,
+                                    contentDescription = null,
+                                    contentScale = ContentScale.Crop,
+                                    modifier = Modifier.fillMaxSize()
+                                )
+                            } else {
+                                Text(
+                                    text = "FILE",
+                                    style = MaterialTheme.typography.labelSmall,
+                                    modifier = Modifier.align(Alignment.Center)
+                                )
+                            }
+                        }
+                        
+                        Spacer(modifier = Modifier.width(16.dp))
+                        
+                        // Details - clicking opens preview
+                        Column(modifier = Modifier.weight(1f).clickable { onPreview(item.id) }) {
                             Text(
-                                text = "[ FILE ]",
-                                style = MaterialTheme.typography.labelSmall,
-                                modifier = Modifier.align(Alignment.Center)
+                                text = item.name,
+                                style = MaterialTheme.typography.bodyLarge,
+                                fontWeight = FontWeight.Bold,
+                                maxLines = 1
+                            )
+                            Text(
+                                text = String.format(Locale.US, "%.1f MB  %s", item.sizeBytes / (1024 * 1024.0), dateStr),
+                                style = MaterialTheme.typography.bodyMedium,
+                                color = MaterialTheme.colorScheme.primary.copy(alpha = 0.7f)
                             )
                         }
-                    }
-                    
-                    Spacer(modifier = Modifier.width(16.dp))
-                    
-                    Column(modifier = Modifier.weight(1f)) {
+                        
+                        Spacer(modifier = Modifier.width(16.dp))
+                        
+                        // Select Action
                         Text(
-                            text = item.name,
+                            text = if (isSelected) "SELECTED" else "SELECT",
                             style = MaterialTheme.typography.bodyLarge,
                             fontWeight = FontWeight.Bold,
-                            maxLines = 1
+                            color = if (isSelected) MaterialTheme.colorScheme.error else MaterialTheme.colorScheme.primary,
+                            modifier = Modifier.clickable { viewModel.toggleSelection(item.id) }.padding(8.dp)
                         )
-                        Text(
-                            text = String.format(Locale.US, "%.1f MB  %s", item.sizeBytes / (1024 * 1024.0), dateStr),
-                            style = MaterialTheme.typography.bodyMedium,
-                            color = MaterialTheme.colorScheme.primary.copy(alpha = 0.7f)
-                        )
-                        
-                        Spacer(modifier = Modifier.height(8.dp))
-                        
-                        Row(
-                            modifier = Modifier.fillMaxWidth(),
-                            horizontalArrangement = Arrangement.Start
-                        ) {
-                            Text(
-                                text = if (!isSelected) "[ KEEP ]" else "  KEEP  ",
-                                style = MaterialTheme.typography.bodyMedium,
-                                fontWeight = if (!isSelected) FontWeight.Bold else FontWeight.Normal,
-                                color = if (!isSelected) MaterialTheme.colorScheme.primary else MaterialTheme.colorScheme.primary.copy(alpha = 0.4f),
-                                modifier = Modifier.clickable { if (isSelected) viewModel.toggleSelection(item.id) }.padding(end = 16.dp)
-                            )
-                            Text(
-                                text = if (isSelected) "[ SELECT ]" else "  SELECT  ",
-                                style = MaterialTheme.typography.bodyMedium,
-                                fontWeight = if (isSelected) FontWeight.Bold else FontWeight.Normal,
-                                color = if (isSelected) MaterialTheme.colorScheme.error else MaterialTheme.colorScheme.primary.copy(alpha = 0.4f),
-                                modifier = Modifier.clickable { if (!isSelected) viewModel.toggleSelection(item.id) }
-                            )
-                        }
                     }
                 }
             }
         }
         
-        Spacer(modifier = Modifier.height(16.dp))
-        
-        Button(
-            onClick = onBack,
+        // Sticky Selection Footer
+        Divider(color = MaterialTheme.colorScheme.primary.copy(alpha = 0.2f))
+        Row(
             modifier = Modifier
                 .fillMaxWidth()
-                .height(56.dp),
-            colors = ButtonDefaults.buttonColors(
-                containerColor = MaterialTheme.colorScheme.surfaceVariant,
-                contentColor = MaterialTheme.colorScheme.onSurfaceVariant
-            ),
-            shape = MaterialTheme.shapes.small
+                .padding(24.dp),
+            horizontalArrangement = Arrangement.SpaceBetween,
+            verticalAlignment = Alignment.CenterVertically
         ) {
-            Text(
-                "BACK TO OVERVIEW", 
-                style = MaterialTheme.typography.bodyLarge,
-                fontWeight = FontWeight.Bold
-            )
+            val selectedCategoryItems = categoryItems.filter { it.id in selectedItemIds }
+            val selSizeMb = selectedCategoryItems.sumOf { it.sizeBytes } / (1024 * 1024.0)
+            
+            Column {
+                Text(
+                    text = "${selectedItemIds.size} SELECTED",
+                    style = MaterialTheme.typography.titleMedium,
+                    fontWeight = FontWeight.Bold
+                )
+                if (selectedItemIds.isNotEmpty()) {
+                    val globalSelSize = scannedItems.filter { it.id in selectedItemIds }.sumOf { it.sizeBytes } / (1024 * 1024.0)
+                    Text(
+                        text = String.format(Locale.US, "%.1f MB TOTAL", globalSelSize),
+                        style = MaterialTheme.typography.bodyMedium,
+                        color = MaterialTheme.colorScheme.primary.copy(alpha = 0.7f)
+                    )
+                }
+            }
+            
+            if (selectedItemIds.isNotEmpty()) {
+                Button(
+                    onClick = onReviewSelection, or go back to overview to hit the final review
+                    colors = ButtonDefaults.buttonColors(
+                        containerColor = MaterialTheme.colorScheme.primary,
+                        contentColor = MaterialTheme.colorScheme.background
+                    ),
+                    shape = MaterialTheme.shapes.small
+                ) {
+                    Text("REVIEW SELECTION", fontWeight = FontWeight.Bold)
+                }
+            }
         }
     }
 }
