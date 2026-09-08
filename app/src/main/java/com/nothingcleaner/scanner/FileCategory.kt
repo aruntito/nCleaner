@@ -1,8 +1,9 @@
 package com.nothingcleaner.scanner
 
-enum class FileCategory {
-    DOWNLOADS,
-    LARGE_FILES,
-    TEMPORARY_FILES,
-    DUPLICATE_CANDIDATES
+enum class FileCategory(val displayName: String) {
+    LARGE_FILES("LARGE FILES"),
+    DOWNLOADS("DOWNLOADS"),
+    SCREEN_RECORDINGS("SCREEN RECORDINGS"),
+    SCREENSHOTS("SCREENSHOTS"),
+    DUPLICATE_CANDIDATES("DUPLICATES")
 }
